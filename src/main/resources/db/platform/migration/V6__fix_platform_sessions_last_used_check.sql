@@ -1,0 +1,48 @@
+-- =====================================================
+-- OmniHealth Platform Database
+-- Version : V6 – Drop the unsatisfiable last_used_at CHECK on platform_sessions
+-- PostgreSQL : 17
+-- Flyway Migration
+-- =====================================================
+--
+-- WHY THIS MIGRATION EXISTS
+-- -------------------------------------------------
+-- platform_sessions (V1) guards last_used_at with:
+--
+--     CONSTRAINT chk_platform_sessions_last_used
+--         CHECK (last_used_at IS NULL OR last_used_at >= created_at)
+--
+-- That guard is unsatisfiable for rows inserted through the ORM, and it breaks
+-- EVERY login / verify-and-authenticate call:
+--
+--   * SessionServiceImpl.createSession() captures Instant.now() and sets it as
+--     last_used_at BEFORE the entity is persisted.
+--   * created_at is populated by JPA auditing (@CreatedDate) a few instructions
+--     LATER, at persist() time.
+--
+-- So created_at ends up a hair AFTER last_used_at, "last_used_at >= created_at"
+-- fails, and the INSERT is rejected at commit — surfacing as a 500 on
+-- POST /api/v1/platform/auth/login (the session cookie is attached to the
+-- response just before the failing commit, so callers saw a cookie for a row
+-- that was actually rolled back).
+--
+-- This is the same audit-clock trap V5 fixed for tenant_databases and
+-- platform_provisioning_jobs. The rest of the schema anchors lifecycle CHECKs
+-- to a BUSINESS column, never to the audit column. last_used_at has no valid
+-- business predecessor at insert time (it IS the session's creation-time
+-- touch), so — exactly as V5 dropped "provisioned_at >= created_at" — the guard
+-- is dropped outright rather than re-anchored.
+--
+-- The remaining platform_sessions checks are left intact on purpose:
+--   * chk_platform_sessions_expiration (expires_at > created_at): expires_at is
+--     created_at + 7/30 DAYS, so the multi-day delta dwarfs the sub-millisecond
+--     auditing skew and the check always holds.
+--   * chk_platform_sessions_revoked (revoked_at >= created_at): revoked_at is
+--     NULL at insert and only ever set to a genuine later timestamp on logout,
+--     so it always holds.
+--
+-- Purely additive: no data change, only a constraint definition is removed.
+-- =====================================================
+
+ALTER TABLE platform_sessions
+    DROP CONSTRAINT IF EXISTS chk_platform_sessions_last_used;

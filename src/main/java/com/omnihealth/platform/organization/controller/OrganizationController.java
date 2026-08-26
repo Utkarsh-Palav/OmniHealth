@@ -3,6 +3,7 @@ package com.omnihealth.platform.organization.controller;
 import com.omnihealth.common.builder.ApiResponseBuilder;
 import com.omnihealth.common.constants.ApiRoutes;
 import com.omnihealth.common.response.ApiResponse;
+import com.omnihealth.common.security.PlatformUserPrincipal;
 import com.omnihealth.platform.organization.dto.request.CreateOrganizationRequest;
 import com.omnihealth.platform.organization.dto.request.UpdateOrganizationRequest;
 import com.omnihealth.platform.organization.dto.response.OrganizationResponse;
@@ -18,7 +19,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,7 +28,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping(ApiRoutes.ORGANIZATIONS)
 @RequiredArgsConstructor
-@Validated
 @Tag(
         name = "Organizations",
         description = "Organization management APIs"
@@ -37,16 +37,22 @@ public class OrganizationController {
     private final OrganizationService organizationService;
     private final ApiResponseBuilder apiResponseBuilder;
 
+    // =====================================================
+    // CREATE
+    // =====================================================
+
     @Operation(
             summary = "Create Organization",
-            description = "Creates a new organization in the platform."
+            description = "Creates a new organization in the platform and associates the authenticated user as primary owner."
     )
     @PostMapping
     public ResponseEntity<ApiResponse<OrganizationResponse>> createOrganization(
             @Valid @RequestBody CreateOrganizationRequest request,
+            @AuthenticationPrincipal PlatformUserPrincipal principal,
             HttpServletRequest httpRequest
     ) {
-        OrganizationResponse response = organizationService.createOrganization(request);
+        UUID creatorUserId = principal != null ? principal.getUserId() : null;
+        OrganizationResponse response = organizationService.createOrganization(request, creatorUserId);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -54,9 +60,14 @@ public class OrganizationController {
                         apiResponseBuilder.created(
                                 response,
                                 "Organization created successfully.",
-                                httpRequest)
+                                httpRequest
+                        )
                 );
     }
+
+    // =====================================================
+    // LIST
+    // =====================================================
 
     @Operation(
             summary = "Get Organizations",
@@ -69,7 +80,9 @@ public class OrganizationController {
                     size = 20,
                     sort = "createdAt",
                     direction = Sort.Direction.DESC
-            ) Pageable pageable,
+            )
+            Pageable pageable,
+
             HttpServletRequest httpRequest
     ) {
 
@@ -85,21 +98,35 @@ public class OrganizationController {
         );
     }
 
+    // =====================================================
+    // GET BY ID
+    // =====================================================
+
     @Operation(
             summary = "Get Organization",
             description = "Retrieves an organization by its unique identifier."
     )
     @GetMapping("/{organizationId}")
-    public ResponseEntity<ApiResponse<OrganizationResponse>> getOrganizationByID(
+    public ResponseEntity<ApiResponse<OrganizationResponse>> getOrganizationById(
             @PathVariable UUID organizationId,
             HttpServletRequest httpRequest
     ) {
-        OrganizationResponse response = organizationService.getOrganization(organizationId);
+
+        OrganizationResponse response =
+                organizationService.getOrganization(organizationId);
 
         return ResponseEntity.ok(
-                apiResponseBuilder.success(response, "Organization retrieved successfully", httpRequest)
+                apiResponseBuilder.success(
+                        response,
+                        "Organization retrieved successfully.",
+                        httpRequest
+                )
         );
     }
+
+    // =====================================================
+    // UPDATE
+    // =====================================================
 
     @Operation(
             summary = "Update Organization",
@@ -108,7 +135,11 @@ public class OrganizationController {
     @PutMapping("/{organizationId}")
     public ResponseEntity<ApiResponse<OrganizationResponse>> updateOrganization(
             @PathVariable UUID organizationId,
-            @Valid @RequestBody UpdateOrganizationRequest request,
+
+            @Valid
+            @RequestBody
+            UpdateOrganizationRequest request,
+
             HttpServletRequest httpRequest
     ) {
 
@@ -126,6 +157,10 @@ public class OrganizationController {
                 )
         );
     }
+
+    // =====================================================
+    // ARCHIVE
+    // =====================================================
 
     @Operation(
             summary = "Archive Organization",
@@ -146,5 +181,4 @@ public class OrganizationController {
                 )
         );
     }
-
 }

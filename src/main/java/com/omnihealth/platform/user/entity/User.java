@@ -1,7 +1,6 @@
 package com.omnihealth.platform.user.entity;
 
 import com.omnihealth.common.entity.BaseEntity;
-import com.omnihealth.common.enums.AuthProvider;
 import com.omnihealth.common.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -19,47 +18,61 @@ import java.time.Instant;
 @AllArgsConstructor
 @Entity
 @Table(
-        name = "users",
+        name = "platform_users",
         indexes = {
-                @Index(name = "idx_users_email", columnList = "email")
+                @Index(name = "idx_platform_users_status", columnList = "status"),
+                @Index(name = "idx_platform_users_last_login_at", columnList = "last_login_at"),
+                @Index(name = "idx_platform_users_deleted_at", columnList = "deleted_at"),
+                @Index(name = "idx_platform_users_created_at", columnList = "created_at")
         }
 )
 public class User extends BaseEntity {
 
-    @Column(name = "first_name", nullable = false, length = 100)
-    private String firstName;
-
-    @Column(name = "last_name", length = 100)
-    private String lastName;
-
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(
+            name = "email",
+            nullable = false,
+            columnDefinition = "citext"
+    )
     private String email;
-
-    @Column(length = 20)
-    private String phone;
-
-    @Column(name = "avatar_url", length = 500)
-    private String avatarUrl;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "auth_provider", nullable = false)
-    private AuthProvider authProvider;
+    @Column(name = "first_name", nullable = false, length = 100)
+    private String firstName;
 
-    @Column(name = "email_verified", nullable = false)
-    private boolean emailVerified;
+    @Column(name = "middle_name", length = 100)
+    private String middleName;
 
-    @Column(name = "phone_verified", nullable = false)
-    private boolean phoneVerified;
+    @Column(name = "last_name", nullable = false, length = 100)
+    private String lastName;
 
-    @Column(name = "last_login_at")
-    private Instant lastLoginAt;
+    @Column(name = "preferred_name", length = 100)
+    private String preferredName;
+
+    @Column(name = "phone_country_code", length = 5)
+    private String phoneCountryCode;
+
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
+    @Column(name = "profile_image_key", length = 512)
+    private String profileImageKey;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "status", nullable = false)
-    private UserStatus status;
+    private UserStatus userStatus;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    private Short failedLoginAttempts;
+
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
+
+    @Column(name = "last_login_at")
+    private Instant lastLoginAt;
 }

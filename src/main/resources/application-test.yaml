@@ -1,8 +1,12 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/omnihealth_test
+    url: jdbc:postgresql://127.0.0.1:5432/omnihealth_test?options=-c%20TimeZone=UTC
     username: postgres
-    password: postgres
+    password: utkarsh
+
+  docker:
+    compose:
+      enabled: false
 
   jpa:
     hibernate:
@@ -10,3 +14,28 @@ spring:
 
   flyway:
     enabled: true
+    locations: classpath:db/platform/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+  mail:
+    host: localhost
+
+app:
+  mail:
+    from-email: "test@omnihealth.com"
+  tenant:
+    admin:
+      url: ${spring.datasource.url}
+      username: ${spring.datasource.username}
+      password: ${spring.datasource.password}
+    connection:
+      host: 127.0.0.1
+      port: 5432
+      username: ${spring.datasource.username}
+      password: ${spring.datasource.password}
+      schema: public
+      max-pool-size: 5
+    flyway:
+      locations: classpath:db/tenant/migration
+      baseline-on-migrate: true

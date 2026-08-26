@@ -12,43 +12,36 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Base entity for all persistent entities.
- * <p>
- * Provides:
- * - UUID primary key
- * - Audit timestamps
- * - Optimistic locking
- */
 @Getter
 @Setter
 @NoArgsConstructor
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
 public abstract class BaseEntity {
-    // Primary Key.
+
+    // Primary Key
     @Id
     @GeneratedValue
     @UuidGenerator
-    @Column(nullable = false, updatable = false)
+    @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    // Timestamps when the entity was created.
+    // Creation timestamp
     @CreatedDate
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    // Timestamps when the entity was modified.
+    // Last modification timestamp
     @LastModifiedDate
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     // Soft-delete timestamp
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    // Optimistic locking version
+    // Optimistic locking
     @Version
-    @Column(nullable = false)
+    @Column(name = "version", nullable = false)
     private long version;
 }

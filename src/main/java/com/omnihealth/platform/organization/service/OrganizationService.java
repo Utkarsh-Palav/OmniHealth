@@ -11,10 +11,17 @@ import java.util.UUID;
 public interface OrganizationService {
 
     OrganizationResponse createOrganization(
+            CreateOrganizationRequest request,
+            UUID creatorUserId
+    );
+
+    OrganizationResponse createOrganization(
             CreateOrganizationRequest request
     );
 
-    Page<OrganizationResponse> getOrganizations(Pageable pageable);
+    Page<OrganizationResponse> getOrganizations(
+            Pageable pageable
+    );
 
     OrganizationResponse getOrganization(
             UUID organizationId

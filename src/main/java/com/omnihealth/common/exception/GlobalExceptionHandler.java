@@ -1,15 +1,17 @@
 package com.omnihealth.common.exception;
 
+import com.omnihealth.common.builder.ApiResponseBuilder;
 import com.omnihealth.common.response.ApiError;
 import com.omnihealth.common.response.ApiResponse;
-import com.omnihealth.common.builder.ApiResponseBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -46,6 +48,32 @@ public class GlobalExceptionHandler {
                 .body(
                         apiResponseBuilder.error(
                                 exception,
+                                request
+                        )
+                );
+    }
+
+    /**
+     * Handles unsupported HTTP method requests (e.g. GET on a POST endpoint).
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHttpRequestMethodNotSupportedException(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request
+    ) {
+
+        log.warn("HTTP method not supported: method={}, url={}, supported={}",
+                exception.getMethod(), request.getRequestURI(), exception.getSupportedHttpMethods());
+
+        String message = String.format("HTTP method '%s' is not supported for this endpoint. Supported methods: %s",
+                exception.getMethod(), exception.getSupportedHttpMethods());
+
+        return ResponseEntity
+                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(
+                        apiResponseBuilder.error(
+                                CommonErrorCode.BAD_REQUEST,
+                                message,
                                 request
                         )
                 );

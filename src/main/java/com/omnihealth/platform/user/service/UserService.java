@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 public interface UserService {
+
     UserResponse createUser(CreateUserRequest request);
 
     UserResponse getUserById(UUID id);
@@ -21,4 +22,6 @@ public interface UserService {
     );
 
     void disableUser(UUID userId);
+
+    void verifyEmail(String rawToken);
 }

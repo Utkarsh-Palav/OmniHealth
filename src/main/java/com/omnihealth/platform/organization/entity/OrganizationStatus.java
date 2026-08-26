@@ -1,8 +1,8 @@
 package com.omnihealth.platform.organization.entity;
 
 public enum OrganizationStatus {
-    PENDING,
+    DRAFT,
     ACTIVE,
     SUSPENDED,
-    ARCHIVED
+    TERMINATED
 }

@@ -8,9 +8,13 @@ import com.omnihealth.platform.organization.dto.request.UpdateOrganizationReques
 import com.omnihealth.platform.organization.dto.response.OrganizationResponse;
 import com.omnihealth.platform.organization.entity.Organization;
 import com.omnihealth.platform.organization.entity.OrganizationStatus;
+import com.omnihealth.platform.organization.entity.PlatformOrganizationMembership;
 import com.omnihealth.platform.organization.mapper.OrganizationMapper;
 import com.omnihealth.platform.organization.repository.OrganizationRepository;
+import com.omnihealth.platform.organization.repository.PlatformOrganizationMembershipRepository;
 import com.omnihealth.platform.organization.service.OrganizationService;
+import com.omnihealth.platform.user.entity.User;
+import com.omnihealth.platform.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -28,14 +32,19 @@ import java.util.UUID;
 public class OrganizationServiceImpl implements OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final PlatformOrganizationMembershipRepository membershipRepository;
+    private final UserRepository userRepository;
     private final OrganizationMapper organizationMapper;
 
     @Override
-    public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
-
+    public OrganizationResponse createOrganization(
+            CreateOrganizationRequest request,
+            UUID creatorUserId
+    ) {
         log.info(
-                "Creating organization with organizationCode={}",
-                request.organizationCode()
+                "Creating organization with organizationCode={}, creatorUserId={}",
+                request.organizationCode(),
+                creatorUserId
         );
 
         if (organizationRepository.existsByOrganizationCode(request.organizationCode())) {
@@ -46,21 +55,42 @@ public class OrganizationServiceImpl implements OrganizationService {
             );
         }
 
-        if (organizationRepository.existsByEmail(request.email())) {
+        if (organizationRepository.existsByOfficialEmail(request.officialEmail())) {
             throw new DuplicateResourceException(
                     "Organization",
-                    "email",
-                    request.email()
+                    "officialEmail",
+                    request.officialEmail()
             );
         }
 
-        final Organization organization = organizationMapper.toEntity(request);
+        Organization organization = organizationMapper.toEntity(request);
+        organization.setStatus(OrganizationStatus.DRAFT);
+        organization.setOrganizationType(request.organizationType());
+        // organizationCode is a @Mapping(ignore = true) target in OrganizationMapper
+        // (same as organizationType), so toEntity never copies it from the request.
+        // It must be set explicitly here, otherwise the NOT NULL organization_code
+        // column is inserted as null and the org insert fails at flush.
+        organization.setOrganizationCode(request.organizationCode());
 
-        organization.setStatus(OrganizationStatus.PENDING);
-        organization.setDemo(Boolean.TRUE.equals(request.demo()));
+        Organization savedOrganization = organizationRepository.save(organization);
 
-        final Organization savedOrganization =
-                organizationRepository.save(organization);
+        // Associate the creator as the primary member (owner) when provided.
+        // The onboarding session lifecycle is owned exclusively by the
+        // onboarding module and is intentionally NOT created here, to keep a
+        // single source of truth for the signup state machine.
+        if (creatorUserId != null) {
+            User creator = userRepository.findByIdAndDeletedAtIsNull(creatorUserId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", creatorUserId.toString()));
+
+            PlatformOrganizationMembership membership = PlatformOrganizationMembership.builder()
+                    .organization(savedOrganization)
+                    .user(creator)
+                    .isPrimary(true)
+                    .joinedAt(Instant.now())
+                    .build();
+            membershipRepository.save(membership);
+            log.info("Created primary organization membership for userId={} in organizationId={}", creator.getId(), savedOrganization.getId());
+        }
 
         log.info(
                 "Organization created successfully. organizationId={}",
@@ -71,9 +101,15 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public Page<OrganizationResponse> getOrganizations(Pageable pageable) {
+    public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
+        return createOrganization(request, null);
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<OrganizationResponse> getOrganizations(
+            Pageable pageable
+    ) {
         log.info(
                 "Fetching organizations. page={}, size={}, sort={}",
                 pageable.getPageNumber(),
@@ -89,8 +125,9 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public OrganizationResponse getOrganization(UUID organizationId) {
-
+    public OrganizationResponse getOrganization(
+            UUID organizationId
+    ) {
         final Organization organization =
                 getOrganizationOrThrow(organizationId);
 
@@ -102,36 +139,28 @@ public class OrganizationServiceImpl implements OrganizationService {
             UUID organizationId,
             UpdateOrganizationRequest request
     ) {
-
         final Organization organization =
                 getOrganizationOrThrow(organizationId);
 
-        if (request.email() != null
-                && !organization.getEmail().equalsIgnoreCase(request.email())
-                && organizationRepository.existsByEmail(request.email())) {
-
-            throw new DuplicateResourceException(
-                    "Organization",
-                    "email",
-                    request.email()
-            );
-        }
-
-        // Uncomment if organizationCode is editable.
         /*
-        if (request.organizationCode() != null
-                && !organization.getOrganizationCode().equalsIgnoreCase(request.organizationCode())
-                && organizationRepository.existsByOrganizationCode(request.organizationCode())) {
+         * Official email is unique.
+         * Only perform the duplicate check when the client actually supplied a new email.
+         */
+        if (request.officialEmail() != null
+                && !organization.getOfficialEmail().equalsIgnoreCase(request.officialEmail())
+                && organizationRepository.existsByOfficialEmail(request.officialEmail())) {
 
             throw new DuplicateResourceException(
                     "Organization",
-                    "organizationCode",
-                    request.organizationCode()
+                    "officialEmail",
+                    request.officialEmail()
             );
         }
-        */
 
-        organizationMapper.updateEntity(request, organization);
+        organizationMapper.updateEntity(
+                request,
+                organization
+        );
 
         final Organization updatedOrganization =
                 organizationRepository.save(organization);
@@ -145,18 +174,20 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     @Override
-    public void archiveOrganization(UUID organizationId) {
-
+    public void archiveOrganization(
+            UUID organizationId
+    ) {
         final Organization organization =
                 getOrganizationOrThrow(organizationId);
 
-        if (organization.getStatus() == OrganizationStatus.ARCHIVED) {
+        if (organization.getStatus() == OrganizationStatus.TERMINATED) {
             throw new ConflictException(
-                    "Organization is already archived."
+                    "Organization is already terminated."
             );
         }
 
-        organization.setStatus(OrganizationStatus.ARCHIVED);
+        organization.setStatus(OrganizationStatus.TERMINATED);
+        organization.setTerminatedAt(Instant.now());
         organization.setDeletedAt(Instant.now());
 
         organizationRepository.save(organization);
@@ -167,8 +198,9 @@ public class OrganizationServiceImpl implements OrganizationService {
         );
     }
 
-    private Organization getOrganizationOrThrow(UUID organizationId) {
-
+    private Organization getOrganizationOrThrow(
+            UUID organizationId
+    ) {
         return organizationRepository
                 .findByIdAndDeletedAtIsNull(organizationId)
                 .orElseThrow(() ->

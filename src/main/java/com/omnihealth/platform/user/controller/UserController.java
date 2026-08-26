@@ -3,7 +3,6 @@ package com.omnihealth.platform.user.controller;
 import com.omnihealth.common.builder.ApiResponseBuilder;
 import com.omnihealth.common.constants.ApiRoutes;
 import com.omnihealth.common.response.ApiResponse;
-import com.omnihealth.common.response.PaginationMeta;
 import com.omnihealth.platform.user.dto.request.CreateUserRequest;
 import com.omnihealth.platform.user.dto.request.UpdateUserRequest;
 import com.omnihealth.platform.user.dto.response.UserResponse;
@@ -55,6 +54,26 @@ public class UserController {
                                 httpRequest
                         )
                 );
+    }
+
+    @GetMapping("/verify-email")
+    @Operation(
+            summary = "Verify User Email",
+            description = "Verifies a newly registered user using the provided token."
+    )
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+            @RequestParam("token") String token,
+            HttpServletRequest httpRequest
+    ) {
+        userService.verifyEmail(token);
+
+        return ResponseEntity.ok(
+                apiResponseBuilder.success(
+                        null,
+                        "Email verified successfully. Your account is now active.",
+                        httpRequest
+                )
+        );
     }
 
     @GetMapping

@@ -1,8 +1,9 @@
 package com.omnihealth.common.enums;
 
 public enum UserStatus {
-    PENDING,
+    PENDING_EMAIL_VERIFICATION,
     ACTIVE,
     LOCKED,
-    DISABLED
+    SUSPENDED,
+    DELETED
 }

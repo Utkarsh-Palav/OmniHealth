@@ -10,3 +10,38 @@ spring:
 
   flyway:
     enabled: true
+    locations: classpath:db/platform/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+  mail:
+    host: smtp.resend.com
+    port: 587
+    username: resend
+    password: ${RESEND_API_KEY}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+app:
+  mail:
+    from-email: "OmniHealth <noreply@utkarshdev.me>"
+  tenant:
+    admin:
+      url: ${spring.datasource.url}
+      username: ${spring.datasource.username}
+      password: ${spring.datasource.password}
+    connection:
+      host: ${DB_HOST:127.0.0.1}
+      port: ${DB_PORT:5432}
+      username: ${spring.datasource.username}
+      password: ${spring.datasource.password}
+      schema: public
+      max-pool-size: 5
+    flyway:
+      locations: classpath:db/tenant/migration
+      baseline-on-migrate: true
